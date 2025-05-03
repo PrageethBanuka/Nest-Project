@@ -30,6 +30,17 @@ export class SharpenService {
 
           for (let ky = -offset; ky <= offset; ky++) {
             for (let kx = -offset; kx <= offset; kx++) {
+              const kernelY = ky + offset;
+              const kernelX = kx + offset;
+              
+              // Get the corresponding position in the image
+              const imgY = Math.min(Math.max(y + ky, 0), height - 1);
+              const imgX = Math.min(Math.max(x + kx, 0), width - 1);
+              
+              const imgIndex = (imgY * width + imgX) * channels + c;
+              
+              // Apply kernel weight
+              sum += imageData[imgIndex] * this.strongKernel[kernelY][kernelX];
             }
           }
 
