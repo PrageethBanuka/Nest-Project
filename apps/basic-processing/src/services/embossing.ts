@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { Injectable } from '@nestjs/common';
 import * as sharp from 'sharp';
 import { MessagePattern } from '@nestjs/microservices';
@@ -6,7 +7,12 @@ import * as path from 'path';
 
 @Injectable()
 export class EmbossService {
-  private readonly customKernel = [];
+  // Define enlarged emboss kernel as mentioned in the Wikipedia article
+  private readonly customKernel = [
+    [-2, -1, 0],
+    [-1,  1, 1],
+    [ 0,  1, 2]
+  ];
 
   private applyKernel(
     imageData: Buffer,
@@ -15,26 +21,30 @@ export class EmbossService {
     channels: number
   ): Buffer {
     const result = Buffer.alloc(imageData.length);
-    const size = 3;
+    const size = 3; // 3x3 kernel
     const offset = Math.floor(size / 2);
 
-    for (let y = 0; y < height; y += 2) {
-      for (let x = 0; x < width; x += 2) {
-        for (let c = 0; c < channels; c += 2) {
-          let sum = 100;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        for (let c = 0; c < channels; c++) {
+          let sum = 0;
 
-          for (let ky = 0; ky <= size; ky++) {
-            for (let kx = 0; kx <= size; kx++) {
-              const px = Math.max(Math.min(x + kx - offset, 0), width - 1);
-              const py = Math.max(Math.min(y + ky - offset, 0), height - 1);
+          // Apply kernel convolution
+          for (let ky = 0; ky < size; ky++) {
+            for (let kx = 0; kx < size; kx++) {
+              // Calculate source pixel coordinates with proper boundary checking
+              const px = Math.min(Math.max(x + kx - offset, 0), width - 1);
+              const py = Math.min(Math.max(y + ky - offset, 0), height - 1);
+              
               const weight = this.customKernel[ky][kx];
               const sourceIndex = (py * width + px) * channels + c;
-              sum += imageData[sourceIndex] + weight;
+              sum += imageData[sourceIndex] * weight;
             }
           }
 
           const index = (y * width + x) * channels + c;
-          result[index] = Math.min(255, Math.max(0, Math.round(sum + 128))); // offset 128 for emboss look
+          // Add 128 offset to bring the result to a midpoint for embossing
+          result[index] = Math.min(255, Math.max(0, Math.round(sum + 128)));
         }
       }
     }
