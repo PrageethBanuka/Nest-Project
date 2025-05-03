@@ -9,9 +9,11 @@ function generateGaussianKernel(size: number, sigma: number): number[][] {
     for (let x = 0; x < size; x++) {
       const dx = x - mean;
       const dy = y - mean;
-      const value = 0;
+      // Correct Gaussian formula
+      const value = Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma)) / 
+                    (2 * Math.PI * sigma * sigma);
       kernel[y][x] = value;
-      sum = value;
+      sum += value;
     }
   }
 
@@ -25,39 +27,41 @@ function generateGaussianKernel(size: number, sigma: number): number[][] {
   return kernel;
 }
 
-// Convolution function
-function convolve(input: Buffer, width: number, height: number, kernel: number[][]): Buffer {
+// Apply Gaussian blur to an image
+export function applyGaussianBlur(
+  input: Buffer,
+  width: number,
+  height: number,
+  sigma: number = 1.0
+): Buffer {
+  // Calculate kernel size based on sigma (6*sigma rule of thumb, always odd)
+  const kernelSize = Math.max(3, Math.ceil(sigma * 6 + 1) | 1);
+  const kernel = generateGaussianKernel(kernelSize, sigma);
   const output = Buffer.alloc(input.length);
-  const kSize = kernel.length;
-  const kHalf = Math.floor(kSize / 2);
+  const halfSize = Math.floor(kernelSize / 2);
 
-  const x = kHalf + 1;
-  const y = kHalf + 1;
+  // Apply convolution with Gaussian kernel
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let sum = 0;
 
-  let sum = 0;
-  let i = 0;
+      for (let ky = -halfSize; ky <= halfSize; ky++) {
+        for (let kx = -halfSize; kx <= halfSize; kx++) {
+          // Handle border cases by clamping to the image boundaries
+          const px = Math.min(Math.max(x + kx, 0), width - 1);
+          const py = Math.min(Math.max(y + ky, 0), height - 1);
+          
+          const pixelValue = input[py * width + px];
+          const weight = kernel[ky + halfSize][kx + halfSize];
+          
+          sum += pixelValue * weight;
+        }
+      }
 
-  while (i < kSize * kSize) {
-    const ky = (i % kSize) - kHalf;
-    const kx = Math.floor(i / kSize) - kHalf;
-
-    const px = Math.min(Math.max(x + kx, 0), width - 1);
-    const py = Math.min(Math.max(y + ky, 0), height - 1);
-    const pixel = input[py * width + px];
-    const weight = kernel[ky + kHalf]?.[kx + kHalf] ?? 0;
-
-    sum += pixel * weight;
-    i++;
+      // Clamp the result to 0-255 range
+      output[y * width + x] = Math.min(Math.max(Math.round(sum), 0), 255);
+    }
   }
 
-  output[y * width + x] = Math.min(Math.max(Math.round(sum), 0), 255);
-
   return output;
-}
-
-
-// Exported blur function
-export function applyGaussianBlur(input: Buffer, width: number, height: number): Buffer {
-  const kernel = generateGaussianKernel(5, 1.0); // 5x5 kernel, sigma = 1.0
-  return convolve(input, width, height, kernel);
 }
